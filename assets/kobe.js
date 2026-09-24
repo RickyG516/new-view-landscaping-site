@@ -1,3 +1,10 @@
+// Shared phone check: accepts 10 digits (or 11 starting with 1), any formatting
+window.nvValidPhone = function (v) {
+  var d = String(v || '').replace(/\D/g, '');
+  if (d.length === 11 && d.charAt(0) === '1') d = d.slice(1);
+  return d.length === 10;
+};
+
 document.addEventListener('DOMContentLoaded', function () {
   var fab = document.querySelector('.chat-fab');
   var panel = document.querySelector('.chat-panel');
@@ -19,6 +26,41 @@ document.addEventListener('DOMContentLoaded', function () {
     ['Landscape Lighting', 'Path lights, uplighting and accent lighting that show off the work after dark.']
   ];
   var CITIES = ['Dubuque, IA', 'Asbury, IA', 'Peosta, IA', 'Galena, IL', 'Platteville, WI'];
+
+  // Page awareness: which service or city is this visitor looking at?
+  var PAGE_SERVICE = {
+    'landscape-design-install': 'Landscape Design & Install',
+    'retaining-walls': 'Retaining Walls',
+    'patios-walkways-fire-pits': 'Patios, Walkways & Fire Pits',
+    'mulch-bed-work': 'Mulch, Rock & Bed Work',
+    'sod-grading-drainage': 'Sod, Grading & Drainage',
+    'trees-plantings': 'Trees & Plantings',
+    'landscape-lighting': 'Landscape Lighting'
+  };
+  var PAGE_CITY = {
+    'landscaping-dubuque-ia': 'Dubuque', 'landscaping-asbury-ia': 'Asbury',
+    'landscaping-peosta-ia': 'Peosta', 'landscaping-galena-il': 'Galena',
+    'landscaping-platteville-wi': 'Platteville'
+  };
+  var slug = (location.pathname.split('/').pop() || 'index').replace(/\.html$/, '');
+  var pageService = PAGE_SERVICE[slug] || '';
+  var pageCity = PAGE_CITY[slug] || '';
+
+  // Off season (Oct through Feb): pitch getting on the spring list
+  var month = new Date().getMonth();
+  var offSeason = month >= 9 || month <= 1;
+
+  // Common questions, answered only with what's already on the site
+  var FAQS = [
+    ['Do you do free estimates?', "Yes. Dallas walks the property in person and puts together a quote himself. No charge, no obligation."],
+    ['What does a project cost?', "Honestly, nobody can give a real number without seeing the yard. The big things that move the price: site conditions and access, how much grading or drainage work is needed, materials (block vs natural stone, pavers vs poured concrete), and overall size. That's why Dallas quotes every job in person."],
+    ['How long does a project take?', "A full property usually runs anywhere from several days to a couple of weeks depending on scope. A lot of that time is grading and base prep, which is the part that keeps walls straight and patios flat for years."],
+    ['What order does the work happen in?', "Grading and drainage first, since everything sits on it. Then hardscape like walls, patios and walkways. Then planting and mulch or rock beds. Lighting gets wired in along the way so nothing has to be dug up later."],
+    ['How far out are you booking?', "It depends on the season. Send a request or call " + PHONE_DISPLAY + " and Dallas will give you a real timeline."],
+    ['Who actually does the work?', "Dallas does. New View is owner operated, so the guy who walks your property is the guy who builds it. No sales rep handing you off to a crew you've never met."],
+    ['Are you insured?', "Yes. New View is licensed and insured for every project, large or small."],
+    ['Do you do lawn care or snow removal?', "No. New View sticks to landscape design, hardscape and planting work."]
+  ];
 
   var scrollEl, formHost;
 
@@ -70,9 +112,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function showEntry() {
     setTimeout(function () {
-      botSay("Hi! I'm " + BOT_NAME + ", New View Landscaping's virtual assistant. What can I help you with?");
+      var hello = "Hi! I'm " + BOT_NAME + ", New View Landscaping's virtual assistant.";
+      if (pageService) hello += " Thinking about " + pageService.toLowerCase() + "?";
+      else if (pageCity) hello += " Yes, we work in " + pageCity + ".";
+      botSay(hello + " What can I help you with?");
+      if (offSeason) botSay("Planning something for spring? Now's the time to get on Dallas's list, before the spring rush fills the schedule.");
       showOptions([
-        ['Get a Free Estimate', showLeadForm],
+        [offSeason ? 'Get on the Spring List' : 'Get a Free Estimate', showLeadForm],
+        ['Common Questions', showFaqs],
         ['Learn About Services', showServices],
         ['Check Service Area', showServiceArea],
         ['Hours & Availability', showHours],
@@ -90,7 +137,7 @@ document.addEventListener('DOMContentLoaded', function () {
     setTimeout(function () {
       showOptions([
         ['Get a Free Estimate', showLeadForm],
-        ['Ask Something Else', function () { scrollEl.innerHTML = ''; showEntry(); }]
+        ['Ask Something Else', backToStart]
       ]);
     }, 300);
   }
@@ -101,7 +148,7 @@ document.addEventListener('DOMContentLoaded', function () {
     setTimeout(function () {
       showOptions([
         ['Get a Free Estimate', showLeadForm],
-        ['Ask Something Else', function () { scrollEl.innerHTML = ''; showEntry(); }]
+        ['Ask Something Else', backToStart]
       ]);
     }, 300);
   }
@@ -111,7 +158,7 @@ document.addEventListener('DOMContentLoaded', function () {
     setTimeout(function () {
       showOptions([
         ['Leave My Info', showLeadForm],
-        ['Ask Something Else', function () { scrollEl.innerHTML = ''; showEntry(); }]
+        ['Ask Something Else', backToStart]
       ]);
     }, 300);
   }
@@ -125,7 +172,29 @@ document.addEventListener('DOMContentLoaded', function () {
     setTimeout(function () {
       showOptions([
         ['Leave My Info Instead', showLeadForm],
-        ['Ask Something Else', function () { scrollEl.innerHTML = ''; showEntry(); }]
+        ['Ask Something Else', backToStart]
+      ]);
+    }, 300);
+  }
+
+  function backToStart() { scrollEl.innerHTML = ''; showEntry(); }
+
+  function showFaqs() {
+    botSay('Here are the questions Dallas gets most. Tap one:');
+    var opts = FAQS.map(function (f) {
+      return [f[0], function () { answerFaq(f); }];
+    });
+    opts.push(['Back to Start', backToStart]);
+    showOptions(opts);
+  }
+
+  function answerFaq(f) {
+    botSay(f[1]);
+    setTimeout(function () {
+      showOptions([
+        ['Get a Free Estimate', showLeadForm],
+        ['Another Question', showFaqs],
+        ['Back to Start', backToStart]
       ]);
     }, 300);
   }
@@ -135,6 +204,8 @@ document.addEventListener('DOMContentLoaded', function () {
     var form = el('form', 'chat-lead-form');
     form.innerHTML = [
       '<input type="hidden" name="form-name" value="kobe-lead">',
+      '<input type="hidden" name="page" value="' + slug + '">',
+      '<p style="display:none"><label>Leave blank <input name="bot-field"></label></p>',
       '<input type="text" name="name" placeholder="Your name" required>',
       '<input type="tel" name="phone" placeholder="Phone number" required>',
       '<input type="email" name="email" placeholder="Email (optional)">',
@@ -146,8 +217,16 @@ document.addEventListener('DOMContentLoaded', function () {
       '<textarea name="message" placeholder="Anything else Dallas should know?" rows="2"></textarea>',
       '<button type="submit">Send to Dallas</button>'
     ].join('');
+    if (pageService) form.querySelector('select[name="service"]').value = pageService;
+    var phoneInput = form.querySelector('input[name="phone"]');
+    phoneInput.addEventListener('input', function () { phoneInput.setCustomValidity(''); });
     form.addEventListener('submit', function (e) {
       e.preventDefault();
+      if (!window.nvValidPhone(phoneInput.value)) {
+        phoneInput.setCustomValidity('Please enter a 10 digit phone number.');
+        phoneInput.reportValidity();
+        return;
+      }
       var data = new URLSearchParams(new FormData(form)).toString();
       var submitBtn = form.querySelector('button');
       submitBtn.textContent = 'Sending...';
@@ -156,7 +235,8 @@ document.addEventListener('DOMContentLoaded', function () {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: data
-      }).then(function () {
+      }).then(function (res) {
+        if (!res.ok) throw new Error('Form rejected: ' + res.status);
         form.remove();
         botSay("Got it, thanks! Dallas will reach out shortly. In the meantime, feel free to call " + PHONE_DISPLAY + " if it's urgent.");
         showRestart();
